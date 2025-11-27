@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5><i class="fas fa-info-circle"></i> Thông tin dữ liệu</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h3 class="text-primary">{{ data_info.total_classes }}</h3>
+                        <small>Lớp học</small>
+                    </div>
+                    <div class="col-6">
+                        <h3 class="text-success">{{ data_info.teachers }}</h3>
+                        <small>Giảng viên</small>
+                    </div>
+                </div>
+                <div class="row text-center mt-2">
+                    <div class="col-6">
+                        <h3 class="text-warning">{{ data_info.rooms }}</h3>
+                        <small>Phòng học</small>
+                    </div>
+                    <div class="col-6">
+                        <h3 class="text-info">50</h3>
+                        <small>Timeslot</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header bg-primary text-white">
+                <h5><i class="fas fa-cogs"></i> Cấu hình thuật toán</h5>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('run_algorithm') }}" method="post">
+                    <div class="mb-3">
+                        <label class="form-label">Kích thước quần thể:</label>
+                        <input type="number" class="form-control" name="population_size" value="50" min="10" max="100">
+                        <small class="form-text text-muted">Số lượng cá thể trong mỗi thế hệ (khuyên dùng: 40-60)</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Số thế hệ:</label>
+                        <input type="number" class="form-control" name="generations" value="100" min="10" max="200">
+                        <small class="form-text text-muted">Số thế hệ tiến hóa (khuyên dùng: 80-150)</small>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-play"></i> Chạy thuật toán
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5><i class="fas fa-table"></i> Dữ liệu mẫu (10 dòng đầu)</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    {{ data_info.sample_data|safe }}
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header bg-warning text-white">
+                <h5><i class="fas fa-exclamation-triangle"></i> Lưu ý quan trọng</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-times-circle text-danger"></i> Xung đột cần tránh:</h6>
+                        <ul>
+                            <li>Cùng phòng, cùng thời gian</li>
+                            <li>Cùng giảng viên, cùng thời gian</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-target text-success"></i> Mục tiêu:</h6>
+                        <ul>
+                            <li>Giảm thiểu xung đột</li>
+                            <li>Tối ưu sử dụng tài nguyên</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle"></i> 
+                    Thuật toán sẽ tự động tìm ra cách phân bổ timeslot (1-50) cho từng lớp học để giảm thiểu xung đột.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

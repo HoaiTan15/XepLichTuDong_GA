@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4><i class="fas fa-upload"></i> Upload dữ liệu lịch học</h4>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data">
+                    <div class="mb-4">
+                        <label for="file" class="form-label">
+                            <i class="fas fa-file-excel"></i> Chọn file Excel (.xlsx):
+                        </label>
+                        <input class="form-control form-control-lg" type="file" id="file" name="file" accept=".xlsx" required>
+                        <div class="form-text">
+                            <i class="fas fa-info-circle"></i> File Excel phải có định dạng: course_id, course_name, subject_code, section, teacher, room
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-upload"></i> Tải lên và phân tích
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header bg-info text-white">
+                <h5><i class="fas fa-lightbulb"></i> Hướng dẫn sử dụng</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-step-forward"></i> Các bước thực hiện:</h6>
+                        <ol>
+                            <li>Chuẩn bị file Excel với dữ liệu lớp học</li>
+                            <li>Upload file lên hệ thống</li>
+                            <li>Cấu hình tham số thuật toán</li>
+                            <li>Chạy Genetic Algorithm</li>
+                            <li>Xem kết quả và tải về</li>
+                        </ol>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-table"></i> Định dạng dữ liệu:</h6>
+                        <ul>
+                            <li><strong>course_id:</strong> Mã lớp học</li>
+                            <li><strong>course_name:</strong> Tên môn học</li>
+                            <li><strong>subject_code:</strong> Mã môn</li>
+                            <li><strong>section:</strong> Lớp</li>
+                            <li><strong>teacher:</strong> Giảng viên</li>
+                            <li><strong>room:</strong> Phòng học</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header bg-success text-white">
+                <h5><i class="fas fa-dna"></i> Về Genetic Algorithm</h5>
+            </div>
+            <div class="card-body">
+                <p>
+                    <strong>Genetic Algorithm (Thuật toán di truyền)</strong> là phương pháp tối ưu hóa mô phỏng quá trình tiến hóa tự nhiên.
+                    Thuật toán sẽ tự động tìm ra lịch học tối ưu với ít xung đột nhất.
+                </p>
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="bg-light p-3 rounded">
+                            <i class="fas fa-users fa-2x text-primary mb-2"></i>
+                            <h6>Population</h6>
+                            <small>Tập hợp các lịch học</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="bg-light p-3 rounded">
+                            <i class="fas fa-chart-line fa-2x text-success mb-2"></i>
+                            <h6>Fitness</h6>
+                            <small>Đánh giá chất lượng</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="bg-light p-3 rounded">
+                            <i class="fas fa-exchange-alt fa-2x text-warning mb-2"></i>
+                            <h6>Crossover</h6>
+                            <small>Lai ghép lịch tốt</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="bg-light p-3 rounded">
+                            <i class="fas fa-random fa-2x text-danger mb-2"></i>
+                            <h6>Mutation</h6>
+                            <small>Đột biến ngẫu nhiên</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

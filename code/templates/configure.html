@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4><i class="fas fa-cogs"></i> Cấu hình thuật toán</h4>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <h5><i class="fas fa-database"></i> Thông tin dữ liệu</h5>
+                        <div class="bg-light p-3 rounded">
+                            <div class="row text-center">
+                                <div class="col-md-4">
+                                    <h3 class="text-primary">{{ data_info.total_classes }}</h3>
+                                    <small>Lớp học</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <h3 class="text-success">{{ data_info.total_teachers }}</h3>
+                                    <small>Giảng viên</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <h3 class="text-warning">{{ data_info.total_rooms }}</h3>
+                                    <small>Phòng học</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <h5><i class="fas fa-info-circle"></i> Thách thức</h5>
+                        <div class="bg-danger text-white p-3 rounded text-center">
+                            <h3>{{ data_info.potential_conflicts }}</h3>
+                            <small>Xung đột tiềm ẩn</small>
+                        </div>
+                    </div>
+                </div>
+
+                <form action="{{ url_for('run_algorithm') }}" method="post">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6><i class="fas fa-users"></i> Kích thước quần thể</h6>
+                                </div>
+                                <div class="card-body">
+                                    <input type="number" class="form-control form-control-lg" name="population_size" value="50" min="20" max="100">
+                                    <small class="text-muted">
+                                        <strong>Giải thích:</strong> Số lượng lịch học khác nhau được tạo ra mỗi lần.<br>
+                                        <strong>VD:</strong> 50 = tạo 50 lịch học khác nhau để so sánh<br>
+                                        <strong>Lưu ý:</strong> Càng lớn càng tốt nhưng chạy chậm hơn
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header">
+                                    <h6><i class="fas fa-history"></i> Số thế hệ tiến hóa</h6>
+                                </div>
+                                <div class="card-body">
+                                    <input type="number" class="form-control form-control-lg" name="generations" value="100" min="50" max="200">
+                                    <small class="text-muted">
+                                        <strong>Giải thích:</strong> Số lần thuật toán cải tiến lịch học.<br>
+                                        <strong>VD:</strong> 100 = thuật toán sẽ cải tiến lịch 100 lần<br>
+                                        <strong>Lưu ý:</strong> Càng nhiều càng tối ưu nhưng mất thời gian
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="card mb-3">
+                                <div class="card-header bg-info text-white">
+                                    <h6><i class="fas fa-lightbulb"></i> Thuật toán sẽ làm gì?</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-3 text-center">
+                                            <i class="fas fa-random fa-3x text-primary mb-2"></i>
+                                            <h6>1. Tạo lịch ngẫu nhiên</h6>
+                                            <small>Tạo nhiều lịch học khác nhau</small>
+                                        </div>
+                                        <div class="col-md-3 text-center">
+                                            <i class="fas fa-chart-line fa-3x text-success mb-2"></i>
+                                            <h6>2. Đánh giá chất lượng</h6>
+                                            <small>Tính số xung đột của mỗi lịch</small>
+                                        </div>
+                                        <div class="col-md-3 text-center">
+                                            <i class="fas fa-trophy fa-3x text-warning mb-2"></i>
+                                            <h6>3. Chọn lịch tốt nhất</h6>
+                                            <small>Giữ lại lịch có ít xung đột</small>
+                                        </div>
+                                        <div class="col-md-3 text-center">
+                                            <i class="fas fa-sync fa-3x text-danger mb-2"></i>
+                                            <h6>4. Lặp lại quá trình</h6>
+                                            <small>Cải tiến qua nhiều thế hệ</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-play"></i> Chạy thuật toán di truyền
+                        </button>
+                        <small class="text-center text-muted">
+                            <i class="fas fa-clock"></i> Thời gian ước tính: {{ estimated_time }} giây
+                        </small>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Ước tính thời gian chạy
+document.addEventListener('DOMContentLoaded', function() {
+    const populationInput = document.querySelector('input[name="population_size"]');
+    const generationsInput = document.querySelector('input[name="generations"]');
+    const timeDisplay = document.querySelector('.text-muted .fas.fa-clock').parentElement;
+    
+    function updateEstimatedTime() {
+        const population = parseInt(populationInput.value) || 50;
+        const generations = parseInt(generationsInput.value) || 100;
+        const classes = {{ data_info.total_classes }};
+        
+        // Công thức ước tính đơn giản
+        const estimatedSeconds = Math.ceil((population * generations * classes) / 1000);
+        
+        timeDisplay.innerHTML = '<i class="fas fa-clock"></i> Thời gian ước tính: ' + estimatedSeconds + ' giây';
+    }
+    
+    populationInput.addEventListener('input', updateEstimatedTime);
+    generationsInput.addEventListener('input', updateEstimatedTime);
+    
+    updateEstimatedTime();
+});
+</script>
+{% endblock %}
