@@ -15,7 +15,7 @@
                         </label>
                         <input class="form-control form-control-lg" type="file" id="file" name="file" accept=".xlsx" required>
                         <div class="form-text">
-                            <i class="fas fa-info-circle"></i> File Excel phải có định dạng: course_id, course_name, subject_code, section, teacher, room
+                            <i class="fas fa-info-circle"></i> File Excel chỉ cần 5 cột: course_id, course_name, subject_code, section, teacher (GA sẽ tự động chọn phòng)
                         </div>
                     </div>
                     <div class="d-grid">
@@ -51,8 +51,10 @@
                             <li><strong>subject_code:</strong> Mã môn</li>
                             <li><strong>section:</strong> Lớp</li>
                             <li><strong>teacher:</strong> Giảng viên</li>
-                            <li><strong>room:</strong> Phòng học</li>
                         </ul>
+                        <div class="alert alert-info mt-2">
+                            <i class="fas fa-robot"></i> <strong>GA tự động chọn phòng:</strong> Từ 80 phòng available (A101-A410, B101-B410)
+                        </div>
                     </div>
                 </div>
             </div>
@@ -65,7 +67,7 @@
             <div class="card-body">
                 <p>
                     <strong>Genetic Algorithm (Thuật toán di truyền)</strong> là phương pháp tối ưu hóa mô phỏng quá trình tiến hóa tự nhiên.
-                    Thuật toán sẽ tự động tìm ra lịch học tối ưu với ít xung đột nhất.
+                    Thuật toán sẽ tự động tìm ra lịch học tối ưu với ít xung đột nhất và <strong>tự động chọn phòng học phù hợp</strong>.
                 </p>
                 <div class="row text-center">
                     <div class="col-md-3">

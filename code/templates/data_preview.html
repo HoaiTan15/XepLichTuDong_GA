@@ -24,7 +24,7 @@
                         <small>Phòng học</small>
                     </div>
                     <div class="col-6">
-                        <h3 class="text-info">50</h3>
+                        <h3 class="text-info">35</h3>
                         <small>Timeslot</small>
                     </div>
                 </div>
@@ -39,13 +39,13 @@
                 <form action="{{ url_for('run_algorithm') }}" method="post">
                     <div class="mb-3">
                         <label class="form-label">Kích thước quần thể:</label>
-                        <input type="number" class="form-control" name="population_size" value="50" min="10" max="100">
-                        <small class="form-text text-muted">Số lượng cá thể trong mỗi thế hệ (khuyên dùng: 40-60)</small>
+                        <input type="number" class="form-control" name="population_size" value="50" min="30" max="100">
+                        <small class="form-text text-muted">Số lượng cá thể (lịch học) trong mỗi thế hệ - nhiều hơn = tốt hơn nhưng chậm hơn</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Số thế hệ:</label>
-                        <input type="number" class="form-control" name="generations" value="100" min="10" max="200">
-                        <small class="form-text text-muted">Số thế hệ tiến hóa (khuyên dùng: 80-150)</small>
+                        <input type="number" class="form-control" name="generations" value="100" min="50" max="300">
+                        <small class="form-text text-muted">Số lần tiến hóa - nhiều hơn = kết quả tốt hơn nhưng mất thời gian hơn</small>
                     </div>
                     <div class="d-grid">
                         <button type="submit" class="btn btn-primary btn-lg">
@@ -60,11 +60,17 @@
     <div class="col-md-8">
         <div class="card">
             <div class="card-header bg-secondary text-white">
-                <h5><i class="fas fa-table"></i> Dữ liệu mẫu (10 dòng đầu)</h5>
+                <h5><i class="fas fa-table"></i> Dữ liệu mẫu ({{ data_info.total_classes }} lớp)</h5>
             </div>
             <div class="card-body">
-                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
                     {{ data_info.sample_data|safe }}
+                </div>
+                <div class="text-center mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i> 
+                        Hiển thị toàn bộ {{ data_info.total_classes }} lớp học trong dataset.
+                    </small>
                 </div>
             </div>
         </div>

@@ -71,16 +71,16 @@
 
         <div class="card mt-3">
             <div class="card-header bg-secondary text-white">
-                <h5><i class="fas fa-table"></i> Lịch học tối ưu (20 dòng đầu)</h5>
+                <h5><i class="fas fa-table"></i> Lịch học tối ưu ({{ results.total_classes }} lớp)</h5>
             </div>
             <div class="card-body">
-                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
                     {{ results.schedule_table|safe }}
                 </div>
                 <div class="text-center mt-3">
                     <small class="text-muted">
                         <i class="fas fa-info-circle"></i> 
-                        Hiển thị 20/{{ results.total_classes }} lớp học. Tải file Excel để xem toàn bộ.
+                        Hiển thị toàn bộ {{ results.total_classes }} lớp học. Tải file Excel để lưu trữ.
                     </small>
                 </div>
             </div>
