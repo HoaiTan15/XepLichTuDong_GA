@@ -1,8 +1,12 @@
-
 def fitness_score(schedule):
-    """
-    Hàm fitness cải thiện để tránh xung đột và phân bổ đều timeslot
-    Trả về giá trị gần 1.0 cho chất lượng tốt nhất
+    """Tính điểm fitness và trả thêm thông tin phạt chi tiết.
+
+    Returns
+    -------
+    fitness : float
+        Điểm fitness (0 < fitness <= 1).
+    info : dict
+        Thông tin chi tiết: số conflict, penalty từng loại, tổng penalty.
     """
     conflicts = 0
     total_classes = len(schedule)
@@ -44,15 +48,42 @@ def fitness_score(schedule):
         if day_index == 6:  # Chủ nhật
             sunday_classes += 1
 
-    # 3. Tính fitness score (gần 1.0 cho kết quả hoàn hảo)
-    # Công thức: fitness = 1 / (1 + total_penalty)
-    evening_penalty = evening_classes * 0.05  # Penalty nhẹ cho buổi tối
-    sunday_penalty = sunday_classes * 0.1     # Penalty nặng hơn cho Chủ nhật
-    conflict_penalty = conflicts * 10         # Penalty rất nặng cho xung đột
+    # Cân bằng lại penalty weights
+    # Với 50 lớp: tối đa ~1225 cặp (50*49/2), conflict thực tế thường < 50
+
+    # Penalty tuyệt đối (không phụ thuộc số lượng lớp)
+    conflict_penalty = conflicts * 5.0
+    evening_penalty = evening_classes * 0.3
+    sunday_penalty = sunday_classes * 0.5
+
+    # Penalty tương đối (phụ thuộc tỷ lệ %)
+    # VD: 10 buổi tối trong 50 lớp = 20% → thêm penalty
+    evening_ratio_penalty = (evening_classes / total_classes) * 2.0 if evening_classes > total_classes * 0.15 else 0
+    sunday_ratio_penalty = (sunday_classes / total_classes) * 3.0 if sunday_classes > total_classes * 0.05 else 0
     
-    total_penalty = conflict_penalty + evening_penalty + sunday_penalty
-    
+    total_penalty = (
+        conflict_penalty
+        + evening_penalty
+        + sunday_penalty
+        + evening_ratio_penalty
+        + sunday_ratio_penalty
+    )
+
     # Đảm bảo fitness luôn > 0 và gần 1.0 khi hoàn hảo
     fitness = 1.0 / (1.0 + total_penalty)
-    
-    return fitness
+
+    info = {
+        "conflicts": conflicts,
+        "room_conflicts": room_conflicts,
+        "teacher_conflicts": teacher_conflicts,
+        "evening_classes": evening_classes,
+        "sunday_classes": sunday_classes,
+        "conflict_penalty": conflict_penalty,
+        "evening_penalty": evening_penalty,
+        "sunday_penalty": sunday_penalty,
+        "evening_ratio_penalty": evening_ratio_penalty,
+        "sunday_ratio_penalty": sunday_ratio_penalty,
+        "total_penalty": total_penalty,
+    }
+
+    return fitness, info

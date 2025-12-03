@@ -10,7 +10,7 @@ def fix_room_format():
     df_full = pd.read_excel("../data/datasetHP.xlsx", skiprows=1, header=None, dtype=str)
     df_full.columns = ['course_id', 'course_name', 'subject_code', 'section', 'teacher', 'room']
     
-    print("✅ Mẫu phòng học sau khi sửa:")
+    print("Mẫu phòng học sau khi sửa:")
     print(df_full['room'].head(10).tolist())
     
     # Lấy 50 lớp đầu tiên
@@ -28,10 +28,10 @@ def fix_room_format():
         # Format cột room thành text
         worksheet = writer.sheets['Data']
         for row in range(2, len(df_small) + 2):
-            cell = worksheet[f'F{row}']  # Cột F là room
-            cell.number_format = '@'  # Text format
+            cell = worksheet[f'F{row}']  
+            cell.number_format = '@'  
     
-    print(f"✅ Đã tạo dataset mới: ../data/dataset_50_classes_fixed.xlsx")
+    print(f"Đã tạo dataset mới: ../data/dataset_50_classes_fixed.xlsx")
     print(f"📊 Số lớp: {len(df_small)}")
     print(f"🏛️ Mẫu phòng: {df_small['room'].head(5).tolist()}")
 

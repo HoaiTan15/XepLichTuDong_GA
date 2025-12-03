@@ -1,4 +1,3 @@
-
 import random
 
 def crossover(a, b):
@@ -32,7 +31,9 @@ def crossover(a, b):
 
 def fix_random_conflict(schedule):
     """
-    Tìm và sửa 1 conflict ngẫu nhiên trong schedule
+     FIX: Tìm và sửa 1 conflict ngẫu nhiên ĐÚNG CÁCH
+    - Thử nhiều lần để tìm timeslot/room không conflict
+    - Giảm thiểu việc tạo conflict mới
     """
     from genetic_algorithm import generate_preferred_timeslot, generate_random_room
     
@@ -52,8 +53,52 @@ def fix_random_conflict(schedule):
         # Thay đổi timeslot hoặc room của một trong hai class conflict
         target_idx = random.choice([i, j])
         
-        # 60% thay timeslot, 40% thay room
-        if random.random() < 0.6:
-            schedule[target_idx]['timeslot'] = generate_preferred_timeslot()
-        else:
-            schedule[target_idx]['room'] = generate_random_room()
+        #  FIX: Thử tối đa 20 lần để tìm giá trị không conflict
+        max_attempts = 20
+        original_timeslot = schedule[target_idx]['timeslot']
+        original_room = schedule[target_idx]['room']
+        
+        for attempt in range(max_attempts):
+            # 60% thay timeslot, 40% thay room
+            if random.random() < 0.6:
+                new_timeslot = generate_preferred_timeslot()
+                
+                #  Kiểm tra xem timeslot mới có tạo conflict không
+                has_conflict = False
+                for k in range(len(schedule)):
+                    if k != target_idx:
+                        other = schedule[k]
+                        # Check room conflict với timeslot mới
+                        if other['room'] == schedule[target_idx]['room'] and other['timeslot'] == new_timeslot:
+                            has_conflict = True
+                            break
+                        # Check teacher conflict với timeslot mới
+                        if other['teacher'] == schedule[target_idx]['teacher'] and other['timeslot'] == new_timeslot:
+                            has_conflict = True
+                            break
+                
+                # Nếu không conflict, áp dụng
+                if not has_conflict:
+                    schedule[target_idx]['timeslot'] = new_timeslot
+                    return  #  Thoát ngay khi fix thành công
+                    
+            else:
+                new_room = generate_random_room()
+                
+                #  Kiểm tra xem room mới có tạo conflict không
+                has_conflict = False
+                for k in range(len(schedule)):
+                    if k != target_idx:
+                        other = schedule[k]
+                        # Check room conflict với timeslot hiện tại
+                        if other['room'] == new_room and other['timeslot'] == schedule[target_idx]['timeslot']:
+                            has_conflict = True
+                            break
+                
+                # Nếu không conflict, áp dụng
+                if not has_conflict:
+                    schedule[target_idx]['room'] = new_room
+                    return  #  Thoát ngay khi fix thành công
+        
+        #  Nếu thử hết 20 lần vẫn không tìm được → giữ nguyên giá trị cũ
+        # (tránh tạo conflict mới)

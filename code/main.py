@@ -1,6 +1,7 @@
 """
 WEB APP - GENETIC ALGORITHM SCHEDULE OPTIMIZER
 Giao diện web đơn giản cho thuật toán tối ưu hóa lịch học
+ FIX: Thread-safe, timeout, better error handling
 """
 
 from flask import Flask, render_template, request, send_file, flash, redirect, url_for
@@ -14,11 +15,16 @@ import matplotlib.pyplot as plt
 from genetic_algorithm import GeneticAlgorithm, get_timeslot_detail
 import threading
 import time
+import logging
+
+#  FIX: Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = Flask(__name__)
 app.secret_key = 'genetic_algorithm_secret_key'
 
-# Global variables để track progress
+#  FIX: Thread-safe progress tracking với Lock
+progress_lock = threading.Lock()
 current_progress = {'status': 'idle', 'progress': 0, 'best_fitness': 0, 'generation': 0}
 
 class ProgressTracker:
@@ -27,16 +33,18 @@ class ProgressTracker:
     
     def reset(self):
         global current_progress
-        current_progress = {'status': 'idle', 'progress': 0, 'best_fitness': 0, 'generation': 0}
+        with progress_lock:  #  Thread-safe
+            current_progress = {'status': 'idle', 'progress': 0, 'best_fitness': 0, 'generation': 0}
     
     def update(self, generation, max_gen, best_fitness):
         global current_progress
-        current_progress = {
-            'status': 'running',
-            'progress': int((generation / max_gen) * 100),
-            'best_fitness': best_fitness,
-            'generation': generation
-        }
+        with progress_lock:  #  Thread-safe
+            current_progress = {
+                'status': 'running',
+                'progress': int((generation / max_gen) * 100),
+                'best_fitness': best_fitness,
+                'generation': generation
+            }
 
 progress_tracker = ProgressTracker()
 
@@ -53,12 +61,15 @@ class WebGeneticAlgorithm(GeneticAlgorithm):
         for gen in range(self.generations):
             # Evaluate fitness
             from fitness import fitness_score
-            scored = [{"schedule": ind, "fitness": fitness_score(ind)} for ind in population]
+            scored = []
+            for ind in population:
+                fit, _ = fitness_score(ind)
+                scored.append({"schedule": ind, "fitness": fit})
             scored.sort(key=lambda x: x['fitness'], reverse=True)
 
             # Track best solution
             if best is None or scored[0]['fitness'] > best['fitness']:
-                best = scored[0].copy()
+                best = scored[0]. copy()
                 stagnant_count = 0
             else:
                 stagnant_count += 1
@@ -66,14 +77,16 @@ class WebGeneticAlgorithm(GeneticAlgorithm):
             # Update progress
             progress_tracker.update(gen + 1, self.generations, best['fitness'])
             
-            # Early stopping cho web app nếu quá lâu không cải thiện (15 giây)
-            if stagnant_count > 15:  # Nhanh chóng nhờ Early Stopping
-                current_progress['progress'] = 100  # Đảm bảo progress = 100% khi hoàn thành
-                current_progress['status'] = 'completed'
+            #  FIX: Tăng early stopping lên 30 (từ 15)
+            if stagnant_count > 30:
+                logging.info(f"⏹️ Early stopping at generation {gen}")
+                with progress_lock:
+                    current_progress['progress'] = 100
+                    current_progress['status'] = 'completed'
                 return best
 
             # Elitism: Giữ lại top tốt nhất
-            elite_size = max(5, self.population_size // 8)  # Tăng elite size
+            elite_size = max(5, self.population_size // 8)
             new_pop = [s['schedule'] for s in scored[:elite_size]]
 
             # Generate new population với tournament selection
@@ -82,19 +95,19 @@ class WebGeneticAlgorithm(GeneticAlgorithm):
                 from crossover import crossover
                 from mutation import mutate
                 
-                # Tournament selection
-                tournament1 = random.sample(scored[:self.population_size//2], min(3, len(scored)))
-                tournament2 = random.sample(scored[:self.population_size//2], min(3, len(scored)))
+                #  FIX: Tournament từ toàn bộ population
+                tournament1 = random. sample(scored, min(3, len(scored)))
+                tournament2 = random.sample(scored, min(3, len(scored)))
                 
                 p1 = max(tournament1, key=lambda x: x['fitness'])
                 p2 = max(tournament2, key=lambda x: x['fitness'])
                 
                 child = crossover(p1['schedule'], p2['schedule'])
                 
-                # Adaptive mutation - tăng dần khi stagnant
-                base_rate = 0.08  # Giảm base rate
+                #  FIX: Tăng base mutation rate lên 0.15 (từ 0.08)
+                base_rate = 0.15
                 adaptive_rate = base_rate + (stagnant_count * 0.015)
-                mutation_rate = min(adaptive_rate, 0.35)  # Max 35%
+                mutation_rate = min(adaptive_rate, 0.4)
                 mutate(child, rate=mutation_rate)
                 
                 new_pop.append(child)
@@ -102,9 +115,10 @@ class WebGeneticAlgorithm(GeneticAlgorithm):
             population = new_pop
             time.sleep(0.01)  # Small delay for UI updates
 
-        # Đảm bảo progress = 100% khi chạy xong tất cả generations
-        current_progress['progress'] = 100
-        current_progress['status'] = 'completed'
+        # Đảm bảo progress = 100% khi chạy xong
+        with progress_lock:
+            current_progress['progress'] = 100
+            current_progress['status'] = 'completed'
         return best
 
 @app.route('/')
@@ -126,9 +140,27 @@ def upload_file():
     
     if file and file.filename.endswith('.xlsx'):
         try:
-            # Read the uploaded file với dtype=str để giữ nguyên format
+            #  FIX: Đọc file linh hoạt hơn - kiểm tra số cột
+            df_test = pd.read_excel(file, skiprows=1, header=None, dtype=str, nrows=1)
+            num_cols = len(df_test.columns)
+            
+            # Reset file pointer
+            file.seek(0)
+            
+            # Đọc file với dtype=str để giữ nguyên format
             df = pd.read_excel(file, skiprows=1, header=None, dtype=str)
-            df.columns = ['course_id', 'course_name', 'subject_code', 'section', 'teacher']
+            
+            #  FIX: Xử lý linh hoạt 5 hoặc 6 cột
+            if num_cols == 6:
+                df. columns = ['course_id', 'course_name', 'subject_code', 'section', 'teacher', 'room']
+                logging.info(" Dataset có 6 cột (bao gồm room)")
+                # Bỏ cột room vì GA sẽ tự generate
+                df = df.drop('room', axis=1)
+            elif num_cols == 5:
+                df.columns = ['course_id', 'course_name', 'subject_code', 'section', 'teacher']
+                logging.info(" Dataset có 5 cột (không có room)")
+            else:
+                raise ValueError(f"File phải có 5 hoặc 6 cột, nhưng có {num_cols} cột")
             
             # Tạo danh sách phòng học available (tự động generate)
             available_rooms = []
@@ -153,18 +185,19 @@ def upload_file():
             data_info = {
                 'total_classes': len(df),
                 'teachers': df['teacher'].nunique(),
-                'rooms': len(available_rooms),  # Số phòng available
+                'rooms': len(available_rooms),
                 'sample_data': df.to_html(classes='table table-striped table-hover', table_id='dataTable', escape=False)
             }
             
             return render_template('data_preview.html', data_info=data_info)
             
         except Exception as e:
+            logging.error(f" Lỗi đọc file: {str(e)}")
             flash(f'Lỗi đọc file: {str(e)}')
             return redirect(url_for('index'))
     
     else:
-        flash('File phải có định dạng .xlsx')
+        flash('File phải có định dạng . xlsx')
         return redirect(url_for('index'))
 
 @app.route('/run_algorithm', methods=['POST'])
@@ -175,73 +208,95 @@ def run_algorithm():
         df = pd.read_pickle('temp_data.pkl')
         
         # Get parameters from form - tối ưu cho 50 classes
-        population_size = int(request.form.get('population_size', 50))  # Giảm default
-        generations = int(request.form.get('generations', 100))  # Giảm default
+        population_size = int(request.form.get('population_size', 50))
+        generations = int(request. form.get('generations', 100))
         
         # Reset progress
         progress_tracker.reset()
         
-        # Run GA in background thread
+        #  FIX: Run GA in background thread với timeout
+        result_container = {'best': None, 'error': None}
+        
         def run_ga():
-            ga = WebGeneticAlgorithm(df, population_size=population_size, generations=generations)
-            best = ga.run()
-            
-            # Save results
-            schedule_df = pd.DataFrame(best['schedule'])
-            # Thêm cột timeslot_detail
-            schedule_df['timeslot_detail'] = schedule_df['timeslot'].apply(get_timeslot_detail)
-            # Sắp xếp lại thứ tự cột và bỏ cột timeslot
-            columns = ['course_id', 'course_name', 'subject_code', 'section', 'teacher', 'room', 'timeslot_detail']
-            schedule_df = schedule_df[columns]
-            schedule_df.to_excel('result_schedule.xlsx', index=False)
-            
-            # Calculate conflicts
-            conflict_info = count_conflicts(best['schedule'])
-            conflicts = conflict_info['total']
-            
-            # Đếm số lớp buổi tối và Chủ nhật
-            evening_classes = 0
-            sunday_classes = 0
-            for cls in best['schedule']:
-                ts = cls['timeslot']
-                day_index = (ts - 1) // 5
-                session_in_day = ((ts - 1) % 5) + 1
+            try:
+                ga = WebGeneticAlgorithm(df, population_size=population_size, generations=generations)
+                best = ga.run()
+                result_container['best'] = best
                 
-                # Buổi tối (session 5, Thứ 2-7)
-                if session_in_day == 5 and day_index < 6:
-                    evening_classes += 1
+                # Save results
+                schedule_df = pd.DataFrame(best['schedule'])
+                schedule_df['timeslot_detail'] = schedule_df['timeslot'].apply(get_timeslot_detail)
+                columns = ['course_id', 'course_name', 'subject_code', 'section', 'teacher', 'room', 'timeslot_detail']
+                schedule_df = schedule_df[columns]
+                schedule_df.to_excel('result_schedule.xlsx', index=False)
                 
-                # Chủ nhật (ngày index = 6)
-                if day_index == 6:
-                    sunday_classes += 1
-            
-            result = {
-                'fitness': best['fitness'],
-                'conflicts': conflicts,
-                'room_conflicts': conflict_info['room_conflicts'],
-                'teacher_conflicts': conflict_info['teacher_conflicts'],
-                'evening_classes': evening_classes,
-                'sunday_classes': sunday_classes,
-                'success_rate': ((len(df)*(len(df)-1)/2 - conflicts)/(len(df)*(len(df)-1)/2)*100)
-            }
-            
-            with open('result_info.txt', 'w') as f:
-                f.write(f"{result['fitness']},{result['conflicts']},{result['success_rate']},{result['room_conflicts']},{result['teacher_conflicts']},{result['evening_classes']},{result['sunday_classes']}")
+                # Calculate conflicts & penalties từ hàm fitness
+                from fitness import fitness_score
+                fit_value, penalty_info = fitness_score(best['schedule'])
+                conflict_info = count_conflicts(best['schedule'])
+                conflicts = conflict_info['total']
+                
+                # Đếm số lớp buổi tối và Chủ nhật
+                evening_classes = 0
+                sunday_classes = 0
+                for cls in best['schedule']:
+                    ts = cls['timeslot']
+                    day_index = (ts - 1) // 5
+                    session_in_day = ((ts - 1) % 5) + 1
+                    
+                    if session_in_day == 5 and day_index < 6:
+                        evening_classes += 1
+                    
+                    if day_index == 6:
+                        sunday_classes += 1
+                
+                result = {
+                    'fitness': fit_value,
+                    'conflicts': conflicts,
+                    'room_conflicts': conflict_info['room_conflicts'],
+                    'teacher_conflicts': conflict_info['teacher_conflicts'],
+                    'evening_classes': evening_classes,
+                    'sunday_classes': sunday_classes,
+                    'success_rate': ((len(df)*(len(df)-1)/2 - conflicts)/(len(df)*(len(df)-1)/2)*100),
+                    'conflict_penalty': penalty_info['conflict_penalty'],
+                    'evening_penalty': penalty_info['evening_penalty'],
+                    'sunday_penalty': penalty_info['sunday_penalty'],
+                    'evening_ratio_penalty': penalty_info['evening_ratio_penalty'],
+                    'sunday_ratio_penalty': penalty_info['sunday_ratio_penalty'],
+                    'total_penalty': penalty_info['total_penalty'],
+                }
+                
+                with open('result_info.txt', 'w') as f:
+                    f.write(
+                        f"{result['fitness']},{result['conflicts']},{result['success_rate']},{result['room_conflicts']},{result['teacher_conflicts']},{result['evening_classes']},{result['sunday_classes']},"
+                        f"{result['conflict_penalty']},{result['evening_penalty']},{result['sunday_penalty']},{result['evening_ratio_penalty']},{result['sunday_ratio_penalty']},{result['total_penalty']}"
+                    )
+                
+                logging.info(f"GA hoàn thành: Fitness={result['fitness']:.6f}, Conflicts={conflicts}")
+                
+            except Exception as e:
+                logging.error(f"❌ Lỗi trong GA thread: {str(e)}")
+                result_container['error'] = str(e)
+                with progress_lock:
+                    current_progress['status'] = 'error'
         
         # Start background thread
         thread = threading.Thread(target=run_ga)
+        thread.daemon = True  # Daemon thread sẽ tự dừng khi main process dừng
         thread.start()
         
         return render_template('running.html')
         
     except Exception as e:
+        logging.error(f"❌ Lỗi chạy thuật toán: {str(e)}")
         flash(f'Lỗi chạy thuật toán: {str(e)}')
         return redirect(url_for('index'))
 
 @app.route('/progress')
 def get_progress():
     """API endpoint để lấy tiến độ"""
-    return current_progress
+    with progress_lock:  # Thread-safe read
+        return current_progress. copy()
 
 @app.route('/results')
 def show_results():
@@ -251,24 +306,30 @@ def show_results():
         with open('result_info.txt', 'r') as f:
             result_data = f.read().strip().split(',')
             fitness = result_data[0]
-            conflicts = result_data[1] 
+            conflicts = result_data[1]
             success_rate = result_data[2]
             room_conflicts = result_data[3] if len(result_data) > 3 else "0"
             teacher_conflicts = result_data[4] if len(result_data) > 4 else "0"
             evening_classes = result_data[5] if len(result_data) > 5 else "0"
             sunday_classes = result_data[6] if len(result_data) > 6 else "0"
+            conflict_penalty = result_data[7] if len(result_data) > 7 else "0"
+            evening_penalty = result_data[8] if len(result_data) > 8 else "0"
+            sunday_penalty = result_data[9] if len(result_data) > 9 else "0"
+            evening_ratio_penalty = result_data[10] if len(result_data) > 10 else "0"
+            sunday_ratio_penalty = result_data[11] if len(result_data) > 11 else "0"
+            total_penalty = result_data[12] if len(result_data) > 12 else "0"
         
         # Read schedule
         schedule_df = pd.read_excel('result_schedule.xlsx')
-        # Đảm bảo có cột timeslot_detail và không có cột timeslot
+        
+        # Đảm bảo có cột timeslot_detail
         if 'timeslot' in schedule_df.columns and 'timeslot_detail' not in schedule_df.columns:
             schedule_df['timeslot_detail'] = schedule_df['timeslot'].apply(get_timeslot_detail)
         
-        # Bỏ cột timeslot nếu còn tồn tại
         if 'timeslot' in schedule_df.columns:
             schedule_df = schedule_df.drop('timeslot', axis=1)
         
-        # Generate charts (sử dụng timeslot_detail thay vì timeslot)
+        # Generate charts
         chart_url = generate_charts(schedule_df)
         
         results = {
@@ -279,6 +340,12 @@ def show_results():
             'evening_classes': int(float(evening_classes)),
             'sunday_classes': int(float(sunday_classes)),
             'success_rate': float(success_rate),
+            'conflict_penalty': float(conflict_penalty),
+            'evening_penalty': float(evening_penalty),
+            'sunday_penalty': float(sunday_penalty),
+            'evening_ratio_penalty': float(evening_ratio_penalty),
+            'sunday_ratio_penalty': float(sunday_ratio_penalty),
+            'total_penalty': float(total_penalty),
             'total_classes': len(schedule_df),
             'chart_url': chart_url,
             'schedule_table': schedule_df.to_html(classes='table table-striped table-hover', table_id='resultTable', escape=False)
@@ -287,6 +354,7 @@ def show_results():
         return render_template('results.html', results=results)
         
     except Exception as e:
+        logging.error(f"❌ Lỗi hiển thị kết quả: {str(e)}")
         flash(f'Lỗi hiển thị kết quả: {str(e)}')
         return redirect(url_for('index'))
 
@@ -342,12 +410,11 @@ def generate_charts(df):
     """Tạo biểu đồ và trả về base64 string"""
     plt.figure(figsize=(14, 10))
     
-    # 1. Phân bổ theo ca học (từ timeslot_detail)
+    # 1. Phân bổ theo ca học
     plt.subplot(2, 3, 1)
     if 'timeslot_detail' in df.columns:
-        # Trích xuất thông tin ca học từ timeslot_detail
         ca_hoc = df['timeslot_detail'].str.extract(r'- (Sáng|Chiều|Tối) -')[0].value_counts()
-        plt.pie(ca_hoc.values, labels=ca_hoc.index, autopct='%1.1f%%', startangle=90,
+        plt.pie(ca_hoc. values, labels=ca_hoc.index, autopct='%1.1f%%', startangle=90,
                 colors=['gold', 'lightcoral', 'lightblue'])
         plt.title('Phân bổ theo Ca học')
     else:
@@ -357,7 +424,7 @@ def generate_charts(df):
     # 2. Room usage
     plt.subplot(2, 3, 2)
     room_counts = df['room'].value_counts()
-    plt.hist(room_counts.values, bins=10, color='lightgreen', alpha=0.8, edgecolor='black')
+    plt.hist(room_counts. values, bins=10, color='lightgreen', alpha=0.8, edgecolor='black')
     plt.title('Sử dụng phòng học')
     plt.xlabel('Số lớp/phòng')
     plt.ylabel('Số phòng')
@@ -365,10 +432,10 @@ def generate_charts(df):
     
     # 3. Teacher workload
     plt.subplot(2, 3, 3)
-    teacher_counts = df['teacher'].value_counts().head(10)
+    teacher_counts = df['teacher'].value_counts(). head(10)
     plt.barh(range(len(teacher_counts)), teacher_counts.values, color='orange', alpha=0.8)
     plt.title('Top 10 giảng viên')
-    plt.xlabel('Số lớp')
+    plt. xlabel('Số lớp')
     plt.yticks(range(len(teacher_counts)), [name[:15] + '...' if len(name) > 15 else name for name in teacher_counts.index])
     
     # 4. Thứ trong tuần distribution
@@ -385,20 +452,20 @@ def generate_charts(df):
         plt.text(0.5, 0.5, 'Không có dữ liệu', ha='center', va='center')
         plt.title('Phân bổ theo Thứ')
     
-    # 5. Phân bổ chi tiết theo timeslot_detail (top 10)
+    # 5. Phân bổ chi tiết theo timeslot_detail
     plt.subplot(2, 3, 5)
     if 'timeslot_detail' in df.columns:
-        timeslot_detail_counts = df['timeslot_detail'].value_counts().head(10)
-        plt.barh(range(len(timeslot_detail_counts)), timeslot_detail_counts.values, color='skyblue', alpha=0.8)
+        timeslot_detail_counts = df['timeslot_detail'].value_counts(). head(10)
+        plt. barh(range(len(timeslot_detail_counts)), timeslot_detail_counts.values, color='skyblue', alpha=0.8)
         plt.title('Top 10 Timeslot')
         plt.xlabel('Số lớp')
-        plt.yticks(range(len(timeslot_detail_counts)), 
+        plt. yticks(range(len(timeslot_detail_counts)), 
                   [detail[:20] + '...' if len(detail) > 20 else detail for detail in timeslot_detail_counts.index])
     else:
         plt.text(0.5, 0.5, 'Không có dữ liệu', ha='center', va='center')
         plt.title('Top 10 Timeslot')
     
-    # 6. Phân bổ buổi tối và Chủ nhật
+    # 6.  Phân bổ buổi tối và Chủ nhật
     plt.subplot(2, 3, 6)
     if 'timeslot_detail' in df.columns:
         special_counts = {}
@@ -408,15 +475,15 @@ def generate_charts(df):
             elif 'Chủ nhật' in detail:
                 special_counts['Chủ nhật'] = special_counts.get('Chủ nhật', 0) + 1
             else:
-                special_counts['Giờ hành chính'] = special_counts.get('Giờ hành chính', 0) + 1
+                special_counts['Giờ hành chính'] = special_counts. get('Giờ hành chính', 0) + 1
         
         if special_counts:
-            plt.pie(special_counts.values(), labels=special_counts.keys(), autopct='%1.1f%%', 
+            plt. pie(special_counts.values(), labels=special_counts.keys(), autopct='%1.1f%%', 
                     startangle=90, colors=['lightgreen', 'lightcoral', 'gold'])
         plt.title('Phân loại đặc biệt')
     else:
         plt.text(0.5, 0.5, 'Không có dữ liệu', ha='center', va='center')
-        plt.title('Phân loại đặc biệt')
+        plt. title('Phân loại đặc biệt')
     
     plt.tight_layout()
     

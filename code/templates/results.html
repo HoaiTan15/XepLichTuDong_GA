@@ -54,6 +54,10 @@
                     <li><i class="fas fa-graduation-cap text-primary"></i> Tổng lớp: <strong>{{ results.total_classes }}</strong></li>
                     <li><i class="fas fa-exclamation-triangle text-warning"></i> Xung đột: <strong>{{ results.conflicts }}</strong></li>
                     <li><i class="fas fa-check-circle text-success"></i> Thành công: <strong>{{ "%.1f"|format(results.success_rate) }}%</strong></li>
+                    <li class="mt-2"><i class="fas fa-balance-scale text-danger"></i> Phạt conflict: <strong>{{ "%.2f"|format(results.conflict_penalty) }}</strong></li>
+                    <li><i class="fas fa-moon text-secondary"></i> Phạt buổi tối: <strong>{{ "%.2f"|format(results.evening_penalty + results.evening_ratio_penalty) }}</strong></li>
+                    <li><i class="fas fa-church text-secondary"></i> Phạt Chủ nhật: <strong>{{ "%.2f"|format(results.sunday_penalty + results.sunday_ratio_penalty) }}</strong></li>
+                    <li class="mt-2"><i class="fas fa-calculator text-info"></i> Tổng phạt: <strong>{{ "%.2f"|format(results.total_penalty) }}</strong></li>
                 </ul>
             </div>
         </div>
@@ -98,10 +102,10 @@
                 <div class="row">
                     <div class="col-md-6">
                         <h6><i class="fas fa-star text-warning"></i> Fitness Score:</h6>
-                        <p>Điểm số đánh giá chất lượng lịch học. Càng gần 1.0 càng tốt. Công thức: <code>1/(1+số_xung_đột)</code></p>
+                        <p>Điểm số đánh giá chất lượng lịch học. Càng gần 1.0 càng tốt. Công thức: <code>1 / (1 + tổng_phạt)</code>, trong đó tổng_phạt = phạt conflict + phạt buổi tối + phạt Chủ nhật.</p>
                         
                         <h6><i class="fas fa-times-circle text-danger"></i> Xung đột:</h6>
-                        <p>Số lượng trường hợp 2 lớp trùng phòng hoặc trùng giảng viên cùng thời gian. Mục tiêu là giảm về gần 0.</p>
+                        <p>Số lượng trường hợp 2 lớp trùng phòng hoặc trùng giảng viên cùng thời gian. Mỗi conflict bị phạt {{ "%.1f"|format(results.conflict_penalty / results.conflicts if results.conflicts > 0 else 5.0) }} điểm (mặc định 5.0 nếu không có conflict).</p>
                     </div>
                     <div class="col-md-6">
                         <h6><i class="fas fa-clock text-primary"></i> Timeslot:</h6>
