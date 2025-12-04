@@ -10,7 +10,7 @@ import os
 import io
 import base64
 import matplotlib
-matplotlib.use('Agg')  # Non-interactive backend
+matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
 from genetic_algorithm import GeneticAlgorithm, get_timeslot_detail
 import threading
@@ -223,12 +223,17 @@ def run_algorithm():
                 best = ga.run()
                 result_container['best'] = best
                 
-                # Save results
+                # Save results - Tạo 2 file: danh sách và thời khóa biểu
                 schedule_df = pd.DataFrame(best['schedule'])
                 schedule_df['timeslot_detail'] = schedule_df['timeslot'].apply(get_timeslot_detail)
                 columns = ['course_id', 'course_name', 'subject_code', 'section', 'teacher', 'room', 'timeslot_detail']
                 schedule_df = schedule_df[columns]
+                
+                # File 1: Danh sách (list view)
                 schedule_df.to_excel('result_schedule.xlsx', index=False)
+                
+                # File 2: Thời khóa biểu (timetable view)
+                create_timetable_excel(best['schedule'], 'result_timetable.xlsx')
                 
                 # Calculate conflicts & penalties từ hàm fitness
                 from fitness import fitness_score
@@ -360,9 +365,175 @@ def show_results():
 
 @app.route('/download')
 def download_file():
-    """Download file kết quả"""
-    return send_file('result_schedule.xlsx', as_attachment=True, 
-                     download_name='optimized_schedule.xlsx')
+    """Download file kết quả dạng danh sách"""
+    try:
+        file_path = os.path.abspath('result_schedule.xlsx')
+        
+        if not os.path.exists(file_path):
+            flash('File kết quả không tồn tại. Vui lòng chạy thuật toán trước!')
+            return redirect(url_for('index'))
+        
+        return send_file(file_path, 
+                        as_attachment=True, 
+                        download_name='optimized_schedule.xlsx',
+                        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    except Exception as e:
+        logging.error(f"❌ Lỗi download file: {str(e)}")
+        flash(f'Lỗi download file: {str(e)}')
+        return redirect(url_for('show_results'))
+
+@app.route('/download_timetable')
+def download_timetable():
+    """Download file kết quả dạng thời khóa biểu"""
+    try:
+        file_path = os.path.abspath('result_timetable.xlsx')
+        
+        if not os.path.exists(file_path):
+            flash('File thời khóa biểu không tồn tại. Vui lòng chạy thuật toán trước!')
+            return redirect(url_for('index'))
+        
+        return send_file(file_path, 
+                        as_attachment=True, 
+                        download_name='timetable.xlsx',
+                        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    except Exception as e:
+        logging.error(f"❌ Lỗi download timetable: {str(e)}")
+        flash(f'Lỗi download timetable: {str(e)}')
+        return redirect(url_for('show_results'))
+
+def create_timetable_excel(schedule, filename):
+    """
+    Tạo file Excel dạng thời khóa biểu (lưới)
+    - Dòng: 5 ca học (Sáng 1-3, Sáng 4-6, Chiều 7-9, Chiều 10-12, Tối 13-15)
+    - Cột: 7 ngày (Thứ 2 - Chủ nhật)
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Thoi Khoa Bieu"
+    
+    # Định nghĩa cấu trúc
+    days = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"]
+    sessions = [
+        "Sáng\nTiết 1-3",
+        "Sáng\nTiết 4-6",
+        "Chiều\nTiết 7-9",
+        "Chiều\nTiết 10-12",
+        "Tối\nTiết 13-15"
+    ]
+    
+    # Tạo header
+    ws.merge_cells('A1:A2')
+    ws['A1'] = "Ca học / Thứ"
+    ws['A1'].font = Font(bold=True, size=12)
+    ws['A1'].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    ws['A1'].fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    ws['A1'].font = Font(bold=True, size=12, color="FFFFFF")
+    
+    # Header các ngày
+    for col_idx, day in enumerate(days, start=2):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.value = day
+        cell.font = Font(bold=True, size=11, color="FFFFFF")
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        ws.merge_cells(start_row=1, start_column=col_idx, end_row=2, end_column=col_idx)
+    
+    # Tạo lưới thời khóa biểu
+    timetable = {}  # Key: (day_index, session), Value: list of classes
+    
+    for cls in schedule:
+        ts = cls['timeslot']
+        day_index = (ts - 1) // 5  # 0-6
+        session_index = (ts - 1) % 5  # 0-4
+        
+        key = (day_index, session_index)
+        if key not in timetable:
+            timetable[key] = []
+        
+        class_info = (
+            f"{cls['course_name']}\n"
+            f"({cls['section']})\n"
+            f"GV: {cls['teacher']}\n"
+            f"Phòng: {cls['room']}"
+        )
+        timetable[key].append(class_info)
+    
+    # Điền dữ liệu vào lưới
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    for session_idx, session_name in enumerate(sessions):
+        row = session_idx + 3
+        
+        # Cột đầu tiên: tên ca học
+        cell = ws.cell(row=row, column=1)
+        cell.value = session_name
+        cell.font = Font(bold=True, size=10)
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+        cell.border = thin_border
+        
+        # Các cột ngày
+        for day_idx in range(7):
+            col = day_idx + 2
+            cell = ws.cell(row=row, column=col)
+            
+            key = (day_idx, session_idx)
+            if key in timetable:
+                classes = timetable[key]
+                cell.value = "\n\n".join(classes)  # Nếu có nhiều lớp cùng slot
+                
+                # Màu cảnh báo nếu có conflict (nhiều hơn 1 lớp)
+                if len(classes) > 1:
+                    cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+                else:
+                    cell.fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+            else:
+                cell.value = ""
+                cell.fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+            
+            cell.alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
+            cell.font = Font(size=9)
+            cell.border = thin_border
+    
+    # Điều chỉnh kích thước cột và dòng
+    ws.column_dimensions['A'].width = 15
+    for col_idx in range(2, 9):
+        ws.column_dimensions[chr(64 + col_idx)].width = 25
+    
+    ws.row_dimensions[1].height = 30
+    ws.row_dimensions[2].height = 30
+    for row_idx in range(3, 8):
+        ws.row_dimensions[row_idx].height = 80
+    
+    # Thêm sheet thống kê
+    ws_stats = wb.create_sheet("Thong Ke")
+    ws_stats['A1'] = "THỐNG KÊ THỜI KHÓA BIỂU"
+    ws_stats['A1'].font = Font(bold=True, size=14)
+    
+    stats_data = [
+        ["Tổng số lớp", len(schedule)],
+        ["Số phòng học sử dụng", len(set(cls['room'] for cls in schedule))],
+        ["Số giảng viên", len(set(cls['teacher'] for cls in schedule))],
+        ["Số timeslot sử dụng", len(timetable)],
+        ["Số lớp buổi tối", sum(1 for cls in schedule if ((cls['timeslot']-1) % 5) == 4 and ((cls['timeslot']-1) // 5) < 6)],
+        ["Số lớp Chủ nhật", sum(1 for cls in schedule if ((cls['timeslot']-1) // 5) == 6)]
+    ]
+    
+    for idx, (label, value) in enumerate(stats_data, start=3):
+        ws_stats[f'A{idx}'] = label
+        ws_stats[f'B{idx}'] = value
+        ws_stats[f'A{idx}'].font = Font(bold=True)
+    
+    wb.save(filename)
+    logging.info(f" Đã tạo file thời khóa biểu: {filename}")
 
 def count_conflicts(schedule):
     """
@@ -497,4 +668,5 @@ def generate_charts(df):
     return chart_url
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Fix Windows socket error: use_reloader=False hoặc tắt debug mode
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
